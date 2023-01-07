@@ -88,6 +88,7 @@ FILE *g_mapsfile;
 char g_mapspath[PATHSIZE];
 	//mapidle
 char g_pagepath[PATHSIZE];
+int g_pagefd;
 
 /*
  * This code must operate on bits in the pageidle bitmap and process pagemap.
@@ -100,7 +101,7 @@ char g_pagepath[PATHSIZE];
 int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 {
 	//char pagepath[PATHSIZE];
-	int pagefd;
+	//int pagefd;
 	char *line;
 	unsigned long long offset, i, pagemapp, pfn, idlemapp, idlebits;
 	int pagesize;
@@ -120,18 +121,18 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 	}
 
 	// open pagemap for virtual to PFN translation
-	// if (sprintf(g_pagepath, "/proc/%d/pagemap", pid) < 0) {
+	// if (sprintf(pagepath, "/proc/%d/pagemap", pid) < 0) {
 	// 	printf("Can't allocate memory.");
 	// 	return 1;
 	// }
-	if ((pagefd = open(g_pagepath, O_RDONLY)) < 0) {
-		perror("Can't read pagemap file");
-		return 2;
-	}
+	// if ((pagefd = open(g_pagepath, O_RDONLY)) < 0) {
+	// 	perror("Can't read pagemap file");
+	// 	return 2;
+	// }
 
 	// cache pagemap to get PFN, then operate on PFN from idlemap
 	offset = PAGEMAP_CHUNK_SIZE * mapstart / pagesize;
-	if (lseek(pagefd, offset, SEEK_SET) < 0) {
+	if (lseek(g_pagefd, offset, SEEK_SET) < 0) {
 		printf("Can't seek pagemap file\n");
 		err = 1;
 		goto out;
@@ -139,7 +140,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 	p = pagebuf;
 
 	// optimized: read this in one syscall
-	if (read(pagefd, p, pagebufsize) < 0) {
+	if (read(g_pagefd, p, pagebufsize) < 0) {
 		perror("Read page map failed.");
 		err = 1;
 		goto out;
@@ -171,7 +172,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 	}
 
 out:
-	close(pagefd);
+	close(g_pagefd);
 
 	return err;
 }
@@ -322,6 +323,10 @@ int main(int argc, char *argv[])
 	if (sprintf(g_pagepath, "/proc/%d/pagemap", pid) < 0) {
 		printf("mapidle g_pagepath Can't allocate memory.");
 		exit(1);
+	}
+	if ((g_pagefd = open(g_pagepath, O_RDONLY)) < 0) {
+		perror("mapidle g_pagefd Can't read pagemap file");
+		exit(2);
 	}
 
 	for(int i=0; i<times; i++){
