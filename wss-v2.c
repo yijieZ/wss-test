@@ -58,7 +58,7 @@
 #define LINESIZE		256
 #define PAGEMAP_CHUNK_SIZE	8
 #define IDLEMAP_CHUNK_SIZE	8
-#define IDLEMAP_BUF_SIZE	4096 * 1024
+#define IDLEMAP_BUF_SIZE	4096 * 16
 
 // big enough to span 740 Gbytes:
 #define MAX_IDLEMAP_SIZE	(20 * 1024 * 1024)
@@ -83,6 +83,11 @@ unsigned long long g_idlebufsize;
 //zyj---
 int g_idlefd = -1;
 char g_buf[IDLEMAP_BUF_SIZE];
+	//walkmaps
+FILE *g_mapsfile;
+char g_mapspath[PATHSIZE];
+	//mapidle
+char g_pagepath[PATHSIZE];
 
 /*
  * This code must operate on bits in the pageidle bitmap and process pagemap.
@@ -94,7 +99,7 @@ char g_buf[IDLEMAP_BUF_SIZE];
 
 int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 {
-	char pagepath[PATHSIZE];
+	//char pagepath[PATHSIZE];
 	int pagefd;
 	char *line;
 	unsigned long long offset, i, pagemapp, pfn, idlemapp, idlebits;
@@ -115,11 +120,11 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 	}
 
 	// open pagemap for virtual to PFN translation
-	if (sprintf(pagepath, "/proc/%d/pagemap", pid) < 0) {
-		printf("Can't allocate memory.");
-		return 1;
-	}
-	if ((pagefd = open(pagepath, O_RDONLY)) < 0) {
+	// if (sprintf(g_pagepath, "/proc/%d/pagemap", pid) < 0) {
+	// 	printf("Can't allocate memory.");
+	// 	return 1;
+	// }
+	if ((pagefd = open(g_pagepath, O_RDONLY)) < 0) {
 		perror("Can't read pagemap file");
 		return 2;
 	}
@@ -173,23 +178,23 @@ out:
 
 int walkmaps(pid_t pid)
 {
-	FILE *mapsfile;
-	char mapspath[PATHSIZE];
+	//FILE *mapsfile;
+	//char mapspath[PATHSIZE];
 	char line[LINESIZE];
 	size_t len = 0;
 	unsigned long long mapstart, mapend;
 
 	// read virtual mappings
-	if (sprintf(mapspath, "/proc/%d/maps", pid) < 0) {
-		printf("Can't allocate memory. Exiting.");
-		exit(1);
-	}
-	if ((mapsfile = fopen(mapspath, "r")) == NULL) {
-		perror("Can't read maps file");
-		exit(2);
-	}
+	// if (sprintf(mapspath, "/proc/%d/maps", pid) < 0) {
+	// 	printf("Can't allocate memory. Exiting.");
+	// 	exit(1);
+	// }
+	// if ((g_mapsfile = fopen(g_mapspath, "r")) == NULL) {
+	// 	perror("Can't read maps file");
+	// 	exit(2);
+	// }
 
-	while (fgets(line, sizeof (line), mapsfile) != NULL) {
+	while (fgets(line, sizeof (line), g_mapsfile) != NULL) {
 		sscanf(line, "%llx-%llx", &mapstart, &mapend);
 		if (g_debug)
 			printf("MAP %llx-%llx\n", mapstart, mapend);
@@ -200,8 +205,8 @@ int walkmaps(pid_t pid)
 			    mapstart, mapend);
 		}
 	}
-
-	fclose(mapsfile);
+	fseek(g_mapsfile, 0, SEEK_SET);
+	//fclose(g_mapsfile);
 
 	return 0;
 }
@@ -217,13 +222,13 @@ int setidlemap()
 	// 	buf[i] = 0xff;
 
 	// set entire idlemap flags
-	if(g_idlefd < 0){
-		if ((g_idlefd = open(g_idlepath, O_RDWR)) < 0) {
-			perror("Can't write idlemap file");
-			exit(2);
-		}
-		printf("zyj---setidle g_idlefd=%d\n", g_idlefd);
-	}
+	// if(g_idlefd < 0){
+	// 	if ((g_idlefd = open(g_idlepath, O_RDWR)) < 0) {
+	// 		perror("Can't write idlemap file");
+	// 		exit(2);
+	// 	}
+	// 	printf("zyj---setidle g_idlefd=%d\n", g_idlefd);
+	// }
 	// only sets user memory bits; kernel is silently ignored
 	while (write(g_idlefd, &g_buf, sizeof(g_buf)) > 0) {;}
 
@@ -239,13 +244,13 @@ int loadidlemap()
 	int idlefd;
 	ssize_t len;
 
-	if(g_idlebuf == NULL){
-		if ((g_idlebuf = malloc(MAX_IDLEMAP_SIZE)) == NULL) {
-			printf("Can't allocate memory for idlemap buf (%d bytes)",
-				MAX_IDLEMAP_SIZE);
-			exit(1);
-		}
-	}
+	// if(g_idlebuf == NULL){
+	// 	if ((g_idlebuf = malloc(MAX_IDLEMAP_SIZE)) == NULL) {
+	// 		printf("Can't allocate memory for idlemap buf (%d bytes)",
+	// 			MAX_IDLEMAP_SIZE);
+	// 		exit(1);
+	// 	}
+	// }
 	// copy (snapshot) idlemap to memory
 	if(g_idlefd < 0){
 		if ((g_idlefd = open(g_idlepath, O_RDWR)) < 0) {
@@ -291,6 +296,33 @@ int main(int argc, char *argv[])
 	}
 	printf("Watching PID %d page references during %.2f seconds...\n",
 	    pid, duration);
+	
+	//loadidlemap
+	if ((g_idlebuf = malloc(MAX_IDLEMAP_SIZE)) == NULL) {
+		printf("loadidlemap g_idlebuf Can't allocate memory for idlemap buf (%d bytes)",
+			MAX_IDLEMAP_SIZE);
+		exit(1);
+	}
+	//setidlemap
+	if ((g_idlefd = open(g_idlepath, O_RDWR)) < 0) {
+		perror("setidlemap g_idlefd Can't write idlemap file");
+		exit(2);
+	}
+
+	//walkmaps
+	if (sprintf(g_mapspath, "/proc/%d/maps", pid) < 0) {
+		printf("walkmaps g_mapspath Can't allocate memory. Exiting.");
+		exit(1);
+	}
+	if ((g_mapsfile = fopen(g_mapspath, "r")) == NULL) {
+		perror("walkmaps g_mapsfile Can't read maps file");
+		exit(2);
+	}
+	//mapidle
+	if (sprintf(g_pagepath, "/proc/%d/pagemap", pid) < 0) {
+		printf("mapidle g_pagepath Can't allocate memory.");
+		exit(1);
+	}
 
 	for(int i=0; i<times; i++){
 		// set idle flags

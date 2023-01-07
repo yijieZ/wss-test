@@ -316,8 +316,11 @@ int main(int argc, char *argv[])
         // assume getpagesize() sized pages:
         mbytes = (g_activepages * getpagesize()) / (1024 * 1024);
         printf("%-7s %10s\n", "Est(s)", "Ref(MB)");
-        printf("%-7.3f %10.2f", (double)est_us / 1000000, mbytes);
+        printf("%-7.3f %10.2f\n", (double)est_us / 1000000, mbytes);
+
+        g_activepages = 0;
+        g_walkedpages = 0;
     }
-    
+
 	return 0;
 }
