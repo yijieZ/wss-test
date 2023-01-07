@@ -81,7 +81,12 @@ unsigned long long *g_idlebuf = NULL;
 unsigned long long g_idlebufsize;
 
 //zyj---
+#define RECORD_FILE_SIZE 100 * 1024 * 1024 //100MB
+int record_fd;
+unsigned long long *record_buf;
+	//setidlemap
 int g_idlefd = -1;
+	//loadidlemap
 char g_buf[IDLEMAP_BUF_SIZE];
 	//walkmaps
 FILE *g_mapsfile;
@@ -298,6 +303,22 @@ int main(int argc, char *argv[])
 	printf("Watching PID %d page references during %.2f seconds...\n",
 	    pid, duration);
 	
+	//record active pfn
+	if ((record_fd = open("/home/yijiezhong/wss-test", O_CREAT|O_RDWR)) < 0) {
+		perror("record_fd open fail");
+		exit(2);
+	}
+	if ((ftruncate(record_fd, RECORD_FILE_SIZE)) < 0) {
+		perror("record_fd ftruncate fail");
+		exit(2);
+	}
+	if(record_buf = (unsigned long long*)mmap(NULL, RECORD_FILE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, record_fd, 0) == MAP_FAILED){
+		perror("record_fd mmap fail");
+		exit(2);
+	}
+	for(int i=0; i<RECORD_FILE_SIZE; i+=4096)
+		record_buf[i] = 0;
+
 	//loadidlemap
 	if ((g_idlebuf = malloc(MAX_IDLEMAP_SIZE)) == NULL) {
 		printf("loadidlemap g_idlebuf Can't allocate memory for idlemap buf (%d bytes)",
