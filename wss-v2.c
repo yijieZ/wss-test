@@ -172,7 +172,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 	}
 
 out:
-	close(g_pagefd);
+	//close(g_pagefd);
 
 	return err;
 }
