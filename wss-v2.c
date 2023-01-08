@@ -180,14 +180,14 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 			for(i=0; i<g_record_cnt; i++){
 				if(g_record_buf[i] >> 12 == pfn){
 					g_record_buf[i]++;
-					printf("zyj---g_record_buf[%u]=%lx, pfn=%lx\n", i, g_record_buf[i], pfn);
+					//printf("zyj---g_record_buf[%u]=%lx, pfn=%lx\n", i, g_record_buf[i], pfn);
 					break;
 				}
 			}
 			if(i == g_record_cnt){
 				g_record_buf[i] = pfn << 12;
 				g_record_cnt++;
-				printf("zyj---new pfn=%lx, cnt=%u\n", g_record_buf[i], i);
+				//printf("zyj---new pfn=%lx, cnt=%u\n", g_record_buf[i], i);
 			}
 		}
 		g_walkedpages++;
@@ -413,6 +413,16 @@ int main(int argc, char *argv[])
 		g_activepages = 0;
 		g_walkedpages = 0;
 	}
+
+	//print record
+	unsigned one_time_page_cnt = 0, more_time_page_cnt = 0; 
+	for(unsigned i=0; i<g_record_cnt; i++){
+		if(g_record_buf[i] % 4096 == 1)
+			one_time_page_cnt++;
+		else
+			more_time_page_cnt++;
+	}
+	printf("zyj---onetimeP=%u, moretimeP=%u\n", one_time_page_cnt, more_time_page_cnt);
 
 	close(g_idlefd);
 	free(g_idlebuf);
