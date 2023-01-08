@@ -51,6 +51,9 @@
 #include <sys/time.h>
 #include <fcntl.h>
 
+//zyj---
+#include <sys/mman.h>
+
 // see Documentation/vm/pagemap.txt:
 #define PFN_MASK		(~(0x1ffLLU << 55))
 
@@ -83,7 +86,8 @@ unsigned long long g_idlebufsize;
 //zyj---
 #define RECORD_FILE_SIZE 100 * 1024 * 1024 //100MB
 int record_fd;
-unsigned long long *record_buf;
+unsigned long long *g_record_buf;
+unsigned g_record_cnt = 0;
 	//setidlemap
 int g_idlefd = -1;
 	//loadidlemap
@@ -172,6 +176,19 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 
 		if (!(idlebits & (1ULL << (pfn % 64)))) {
 			g_activepages++;
+			unsigned long long i;
+			for(i=0; i<g_record_cnt; i++){
+				if(g_record_buf[i] >> 12 == pfn){
+					g_record_buf[i]++;
+					printf("zyj---g_record_buf[%u]=%lx, pfn=%lx\n", i, g_record_buf[i], pfn);
+					break;
+				}
+			}
+			if(i == g_record_cnt){
+				g_record_buf[i] = pfn << 12;
+				g_record_cnt++;
+				printf("zyj---new pfn=%lx, cnt=%u\n", g_record_buf[i], i);
+			}
 		}
 		g_walkedpages++;
 	}
@@ -304,7 +321,7 @@ int main(int argc, char *argv[])
 	    pid, duration);
 	
 	//record active pfn
-	if ((record_fd = open("/home/yijiezhong/wss-test", O_CREAT|O_RDWR)) < 0) {
+	if ((record_fd = open("/home/yijiezhong/wss-test/1.tmp", O_CREAT|O_RDWR)) < 0) {
 		perror("record_fd open fail");
 		exit(2);
 	}
@@ -312,12 +329,13 @@ int main(int argc, char *argv[])
 		perror("record_fd ftruncate fail");
 		exit(2);
 	}
-	if(record_buf = (unsigned long long*)mmap(NULL, RECORD_FILE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, record_fd, 0) == MAP_FAILED){
+	g_record_buf = (unsigned long long*)mmap(NULL, RECORD_FILE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, record_fd, 0);
+	if(g_record_buf == MAP_FAILED){
 		perror("record_fd mmap fail");
 		exit(2);
 	}
-	for(int i=0; i<RECORD_FILE_SIZE; i+=4096)
-		record_buf[i] = 0;
+	for(int i=0; i<RECORD_FILE_SIZE/8; i++)
+		g_record_buf[i] = 0;
 
 	//loadidlemap
 	if ((g_idlebuf = malloc(MAX_IDLEMAP_SIZE)) == NULL) {
