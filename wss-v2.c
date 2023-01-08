@@ -416,5 +416,6 @@ int main(int argc, char *argv[])
 
 	close(g_idlefd);
 	free(g_idlebuf);
+	munmap(g_record_buf, RECORD_FILE_SIZE);
 	return 0;
 }
